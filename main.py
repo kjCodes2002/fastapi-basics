@@ -1,9 +1,16 @@
 from fastapi import FastAPI, Depends
+from fastapi.middleware.cors import CORSMiddleware
 from models import Product 
 from database import engine, session
 from sqlalchemy.orm import Session
 import database_models
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins = ["*"],
+    allow_methods = ["*"] 
+)
 
 database_models.Base.metadata.create_all(bind=engine)
 
@@ -44,9 +51,37 @@ def get_product_by_id(id: int, db: Session = Depends(get_db)):
     db_product = db.query(database_models.Product).filter(database_models.Product.id == id).first()
     if db_product:
         return db_product
-    return "Couldn't find product"
+    return "Product not found"
 
 @app.post('/product')
-def add_product(product: Product):
-    products.append(product)
-    return product
+def add_product(product: Product, db: Session = Depends(get_db)):
+    db_product = db.query(database_models.Product).filter(database_models.Product.id == product.id).first()
+    if db_product:
+        return 'id already exists'
+    else: 
+        db.add(database_models.Product(**product.model_dump()))
+        db.commit()
+        return 'product added'
+    
+@app.put('/product/{id}')
+def update_product(id: int, product: Product, db: Session = Depends(get_db)):
+    db_product = db.query(database_models.Product).filter(database_models.Product.id == id).first()
+    if db_product:
+        db_product.name = product.name
+        db_product.description = product.description
+        db_product.price = product.price
+        db_product.quantity = product.quantity
+        db.commit()
+        return 'Product updated'
+    else:
+        return "Product not found"
+    
+@app.delete('/product/{id}')
+def delete_product(id: int, db:Session = Depends(get_db)):
+    db_product = db.query(database_models.Product).filter(database_models.Product.id==id).first()
+    if db_product:
+        db.delete(db_product)
+        db.commit()
+        return 'Product deleted'
+    else:
+        return 'Product not found'
